@@ -40,11 +40,35 @@ class JoyconTeleopNode(Node):
 
         self.timer = self.create_timer(self.period, self.timer_callback)
 
+        self.stick_right_vertical_min = 0.0
+        self.stick_right_vertical_max = 0.0
+        self.stick_right_horizontal_min = 0.0
+        self.stick_right_horizontal_max = 0.0
+
+        self.calibrate_right_stick()
+
     def reset(self):
         self.joycon.reset_orientation()
         self.joycon.calibrate()
         self.vel = np.zeros(3)
         self.accel_calib_offset = np.array(self.joycon.accel_in_g).mean(axis=0)
+
+    def calibrate_right_stick(self):
+        stick_calib_delay = 3
+        print("Calibrating right stick...")
+        print("Move the right stick to the top")
+        time.sleep(stick_calib_delay)
+        self.stick_right_vertical_max = self.joycon.get_stick_right_vertical()
+        print("Move the right stick to the bottom")
+        time.sleep(stick_calib_delay)
+        self.stick_right_vertical_min = self.joycon.get_stick_right_vertical()
+        print("Move the right stick to the left")
+        time.sleep(stick_calib_delay)
+        self.stick_right_horizontal_min = self.joycon.get_stick_right_horizontal()
+        print("Move the right stick to the right")
+        time.sleep(stick_calib_delay)
+        self.stick_right_horizontal_max = self.joycon.get_stick_right_horizontal()
+        print("Calibration complete")
 
     def timer_callback(self):
         try:
@@ -98,6 +122,16 @@ class JoyconTeleopNode(Node):
             direction_pose.pose.orientation.w = self.joycon.direction_Q.w
             self.direction_pub.publish(direction_pose)
 
+            right_stick_v = (self.joycon.get_stick_right_vertical() - self.stick_right_vertical_min) / (
+                    self.stick_right_vertical_max - self.stick_right_vertical_min)
+            right_stick_h = (self.joycon.get_stick_right_horizontal() - self.stick_right_horizontal_min) / (
+                    self.stick_right_horizontal_max - self.stick_right_horizontal_min)
+
+            # TODO: try simulating the pose of the end-effector motion
+            #  where we use the right_stick_v to along in the forward (+X? +Z?) direction
+
+            rr.log("stick/vertical", rr.TimeSeriesScalar(right_stick_v))
+            rr.log("stick/horizontal", rr.TimeSeriesScalar(right_stick_h))
             rr.log("pointer/x", rr.TimeSeriesScalar(self.joycon.pointer[0]))
             rr.log("pointer/y", rr.TimeSeriesScalar(self.joycon.pointer[1]))
             rr.log("accel/x", rr.TimeSeriesScalar(accel_in_g[0]))
@@ -116,6 +150,7 @@ class JoyconTeleopNode(Node):
             rr.log("origin", rr.Transform3D())
         except TypeError:
             pass
+
 
 def main(args=None):
     rr.init('joycon_teleop')
